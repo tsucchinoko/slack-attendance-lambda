@@ -1,0 +1,7 @@
+{
+  "headers": {
+    "X-Slack-Signature": "v0=test_signature",
+    "X-Slack-Request-Timestamp": "1234567890"
+  },
+  "body": "token=test_token&team_id=T1234&team_domain=test&channel_id=C1234&channel_name=general&user_id=U1234&user_name=testuser&command=/attendance&text=in&response_url=https://hooks.slack.com/test&trigger_id=123.456"
+}
