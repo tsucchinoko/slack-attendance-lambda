@@ -147,10 +147,15 @@ chmod +x deploy.sh
 # ビルド
 cargo lambda build --release
 
-# デプロイ
+# デプロイ（関数名はパッケージ名と同じにする）
 cargo lambda deploy \
   --iam-role arn:aws:iam::ACCOUNT_ID:role/lambda-execution-role \
-  slack-attendance
+  slack-attendance-lambda
+
+# または aws-vault を使用する場合
+aws-vault exec YOUR_PROFILE -- cargo lambda deploy \
+  --iam-role arn:aws:iam::ACCOUNT_ID:role/lambda-execution-role \
+  slack-attendance-lambda
 ```
 
 #### 方法3: 環境変数付きでデプロイ
@@ -158,7 +163,7 @@ cargo lambda deploy \
 cargo lambda deploy \
   --iam-role arn:aws:iam::ACCOUNT_ID:role/lambda-execution-role \
   --env-vars SLACK_SIGNING_SECRET=your_secret,NOTION_API_KEY=your_key,NOTION_DATABASE_ID=your_db_id \
-  slack-attendance
+  slack-attendance-lambda
 ```
 
 ### API Gateway設定
@@ -167,7 +172,7 @@ cargo lambda deploy \
 
 1. **Lambda関数の確認**
    ```bash
-   aws lambda list-functions --query 'Functions[?FunctionName==`slack-attendance`]'
+   aws lambda list-functions --query 'Functions[?FunctionName==`slack-attendance-lambda`]'
    ```
 
 2. **API Gatewayの作成**
@@ -189,14 +194,15 @@ cargo lambda deploy \
 
 2. **環境変数の設定**
    ```bash
-   # Lambda関数の環境変数設定
+   # Lambda関数の環境変数設定（1行で記述）
    aws lambda update-function-configuration \
-     --function-name slack-attendance \
-     --environment Variables='{
-       "SLACK_SIGNING_SECRET":"your_slack_signing_secret",
-       "NOTION_API_KEY":"your_notion_api_key", 
-       "NOTION_DATABASE_ID":"your_notion_database_id"
-     }'
+     --function-name slack-attendance-lambda \
+     --environment Variables='{"SLACK_SIGNING_SECRET":"your_slack_signing_secret","NOTION_API_KEY":"your_notion_api_key","NOTION_DATABASE_ID":"your_notion_database_id"}'
+
+   # またはaws-vaultを使用する場合
+   aws-vault exec YOUR_PROFILE -- aws lambda update-function-configuration \
+     --function-name slack-attendance-lambda \
+     --environment Variables='{"SLACK_SIGNING_SECRET":"your_slack_signing_secret","NOTION_API_KEY":"your_notion_api_key","NOTION_DATABASE_ID":"your_notion_database_id"}'
    ```
 
 ## 必要な環境変数
@@ -246,18 +252,18 @@ aws iam attach-user-policy \
 #### 3. 実行時エラー
 ```bash
 # ログの確認
-aws logs describe-log-groups --log-group-name-prefix "/aws/lambda/slack-attendance"
+aws logs describe-log-groups --log-group-name-prefix "/aws/lambda/slack-attendance-lambda"
 
 # 直近のログストリーム確認
 aws logs describe-log-streams \
-  --log-group-name "/aws/lambda/slack-attendance" \
+  --log-group-name "/aws/lambda/slack-attendance-lambda" \
   --order-by LastEventTime \
   --descending \
   --max-items 1
 
 # ログの表示
 aws logs get-log-events \
-  --log-group-name "/aws/lambda/slack-attendance" \
+  --log-group-name "/aws/lambda/slack-attendance-lambda" \
   --log-stream-name "LOG_STREAM_NAME"
 ```
 
@@ -265,7 +271,7 @@ aws logs get-log-events \
 ```bash
 # 環境変数の確認
 aws lambda get-function-configuration \
-  --function-name slack-attendance \
+  --function-name slack-attendance-lambda \
   --query 'Environment.Variables'
 ```
 
