@@ -42,18 +42,24 @@ Slack → API Gateway → 受付Lambda → SQS → 処理Lambda → Notion API
 
 ## ビルド
 
-このシステムは2つのLambda関数で構成されているため、それぞれをビルドする必要があります。
+このシステムは2つのLambda関数で構成されたワークスペースプロジェクトです。
 
 ```bash
-# 受付Lambdaのビルド
+# ワークスペース全体のビルド（推奨）
+cargo build --release
+
+# 個別のLambda関数のビルド
+# 受付Lambda
 cd src/receiver
 cargo lambda build --release
 cd ../..
 
-# 処理Lambdaのビルド  
+# 処理Lambda
+cd src/processor
 cargo lambda build --release
+cd ../..
 
-# 一括ビルド（推奨）
+# 一括ビルドとデプロイ（推奨）
 ./deploy-both.sh [IAM-ROLE-ARN]  # ビルドとデプロイを一括実行
 ```
 
@@ -61,17 +67,23 @@ cargo lambda build --release
 
 ## テスト
 
-通常のRustユニットテストは `cargo test` で実行できます。
+通常のRustユニットテストは `cargo test` で実行できます（ワークスペース全体）。
 
-ローカルで統合テストを実行するには、`cargo lambda watch` と `cargo lambda invoke` コマンドを使用します。
+ローカルで統合テストを実行するには、各Lambda関数ディレクトリで`cargo lambda watch` と `cargo lambda invoke` コマンドを使用します。
 
 ### ローカルでのテスト実行
 
 ```bash
-# ローカルサーバーの起動（ファイル変更時に自動再起動）
-cargo lambda watch
+# ワークスペース全体のテスト
+cargo test
 
-# 別ターミナルでテストイベントによる実行
+# 受付Lambdaのローカル実行（HTTPサーバーとして）
+cd src/receiver
+cargo lambda watch
+# 別ターミナルでcURLテスト可能
+
+# 処理Lambdaのローカル実行（SQSイベント用）
+cd src/processor
 cargo lambda invoke --data-file test-event.json
 
 # cURLでHTTPリクエストのテスト
@@ -144,7 +156,9 @@ cargo lambda build --release
 cd ../..
 
 # 処理Lambda
+cd src/processor
 cargo lambda build --release
+cd ../..
 
 # 2. Terraformディレクトリに移動
 cd terraform
@@ -181,7 +195,7 @@ chmod +x deploy-both.sh
 chmod +x deploy.sh
 
 # 処理Lambdaのみデプロイ
-./deploy.sh slack-attendance arn:aws:iam::ACCOUNT_ID:role/lambda-execution-role
+./deploy.sh slack-attendance-processor arn:aws:iam::ACCOUNT_ID:role/lambda-execution-role
 ```
 
 #### 方法4: cargo lambdaコマンドを直接使用
@@ -195,19 +209,27 @@ cargo lambda deploy \
 cd ../..
 
 # 処理Lambdaのビルドとデプロイ
+cd src/processor
 cargo lambda build --release
 cargo lambda deploy \
   --iam-role arn:aws:iam::ACCOUNT_ID:role/lambda-execution-role \
-  slack-attendance-lambda
+  slack-attendance-processor
+cd ../..
 
 # または aws-vault を使用する場合
+# 受付Lambda
+cd src/receiver
 aws-vault exec YOUR_PROFILE -- cargo lambda deploy \
   --iam-role arn:aws:iam::ACCOUNT_ID:role/lambda-execution-role \
   slack-attendance-receiver
+cd ../..
 
+# 処理Lambda  
+cd src/processor
 aws-vault exec YOUR_PROFILE -- cargo lambda deploy \
   --iam-role arn:aws:iam::ACCOUNT_ID:role/lambda-execution-role \
-  slack-attendance-lambda
+  slack-attendance-processor
+cd ../..
 ```
 
 ### API Gateway設定

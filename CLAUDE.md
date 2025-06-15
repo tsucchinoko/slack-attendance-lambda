@@ -6,18 +6,25 @@
 
 ### cargo-lambdaを使った開発
 
-このシステムは2つのLambda関数で構成されているため、それぞれでビルド・テストが必要です。
+このシステムは2つのLambda関数で構成されたワークスペースプロジェクトです。
 
 ```bash
-# 受付Lambda（HTTPハンドラー）のビルド
+# ワークスペース全体のビルド（推奨）
+cargo build
+cargo build --release
+
+# 個別のLambda関数のビルド
+# 受付Lambda（HTTPハンドラー）
 cd src/receiver
 cargo lambda build
 cargo lambda build --release
-
-# 処理Lambda（SQSイベントハンドラー）のビルド
 cd ../..
+
+# 処理Lambda（SQSイベントハンドラー）
+cd src/processor  
 cargo lambda build
 cargo lambda build --release
+cd ../..
 
 # 一括ビルドとデプロイ（推奨）
 ./deploy-both.sh arn:aws:iam::ACCOUNT:role/lambda-execution-role
@@ -27,7 +34,7 @@ cd src/receiver
 cargo lambda watch
 
 # 処理Lambdaをローカルで実行（SQSイベント用）
-cd ../..
+cd src/processor
 cargo lambda invoke --data-file test-event.json
 ```
 
@@ -176,7 +183,9 @@ IAMロール、Lambda関数、SQS、API Gatewayをすべて自動作成します
 cd src/receiver
 cargo lambda build --release
 cd ../..
+cd src/processor
 cargo lambda build --release
+cd ../..
 
 # 2. Terraformでインフラをデプロイ（IAMロールも自動作成）
 cd terraform
@@ -214,10 +223,12 @@ cargo lambda deploy \
 cd ../..
 
 # 処理Lambdaのビルドとデプロイ
+cd src/processor
 cargo lambda build --release
 cargo lambda deploy \
   --iam-role arn:aws:iam::ACCOUNT_ID:role/lambda-execution-role \
-  slack-attendance-lambda
+  slack-attendance-processor
+cd ../..
 ```
 
 ### API Gateway設定

@@ -34,7 +34,7 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
 # Package Lambda function
 data "archive_file" "lambda_zip" {
   type        = "zip"
-  source_file = "../target/lambda/slack-attendance-lambda/bootstrap"
+  source_file = "../src/processor/target/lambda/slack-attendance-processor/bootstrap"
   output_path = "${path.module}/lambda_deployment.zip"
 }
 

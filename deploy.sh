@@ -3,7 +3,7 @@
 # デプロイスクリプト for cargo-lambda
 # 使用方法: ./deploy.sh [関数名] [IAMロールARN]
 
-FUNCTION_NAME=${1:-"slack-attendance-lambda"}
+FUNCTION_NAME=${1:-"slack-attendance-processor"}
 ROLE_ARN=${2:-""}
 
 if [ -z "$ROLE_ARN" ]; then
@@ -14,6 +14,7 @@ if [ -z "$ROLE_ARN" ]; then
 fi
 
 echo "Building Lambda function..."
+cd src/processor
 cargo lambda build --release
 
 if [ $? -ne 0 ]; then
@@ -25,6 +26,7 @@ echo "Deploying Lambda function: $FUNCTION_NAME"
 cargo lambda deploy \
     --iam-role "$ROLE_ARN" \
     "$FUNCTION_NAME"
+cd ../..
 
 if [ $? -eq 0 ]; then
     echo "Deployment successful!"

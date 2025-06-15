@@ -22,11 +22,13 @@ fi
 cd ../..
 
 echo "===== Building Processor Lambda function ====="
+cd src/processor
 cargo lambda build --release
 if [ $? -ne 0 ]; then
     echo "Processor build failed!"
     exit 1
 fi
+cd ../..
 
 echo "===== Deploying Receiver Lambda function ====="
 cd src/receiver
@@ -40,17 +42,19 @@ fi
 cd ../..
 
 echo "===== Deploying Processor Lambda function ====="
+cd src/processor
 cargo lambda deploy \
     --iam-role "$ROLE_ARN" \
-    "slack-attendance-lambda"
+    "slack-attendance-processor"
 if [ $? -ne 0 ]; then
     echo "Processor deployment failed!"
     exit 1
 fi
+cd ../..
 
 echo "===== Deployment successful! ====="
 echo "Receiver function: slack-attendance-receiver"
-echo "Processor function: slack-attendance-lambda"
+echo "Processor function: slack-attendance-processor"
 echo ""
 echo "Next steps:"
 echo "1. Run terraform apply to create/update infrastructure"

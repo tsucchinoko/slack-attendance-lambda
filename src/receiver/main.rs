@@ -4,7 +4,7 @@ use serde_json::json;
 use std::collections::HashMap;
 
 // Import shared types and local modules
-#[path = "../types.rs"]
+#[path = "../processor/types.rs"]
 mod types;
 mod slack;
 

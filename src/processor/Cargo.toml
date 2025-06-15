@@ -1,5 +1,5 @@
 [package]
-name = "slack-attendance-receiver"
+name = "slack-attendance-processor"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,16 +8,17 @@ name = "bootstrap"
 path = "main.rs"
 
 [dependencies]
-lambda_http = { workspace = true }
+lambda_runtime = { workspace = true }
+aws_lambda_events = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+reqwest = { workspace = true }
 serde_urlencoded = { workspace = true }
-aws-config = { workspace = true }
-aws-sdk-sqs = { workspace = true }
+chrono = { workspace = true }
 hex = { workspace = true }
 hmac = { workspace = true }
 sha2 = { workspace = true }
-chrono = { workspace = true }
+base64 = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
