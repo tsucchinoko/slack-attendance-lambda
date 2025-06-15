@@ -2,6 +2,26 @@
 
 slack-attendance-lambdaは、SlackとNotionを連携させた勤怠管理システムです。cargo-lambdaを使用してRustで実装されたAWS Lambda関数です。
 
+## アーキテクチャ
+
+このシステムは、Slackの3秒タイムアウト制限に対応するため、以下の2つのLambda関数で構成されています：
+
+1. **受付Lambda** (`slack-attendance-receiver`)
+   - Slackからのリクエストを即座に受信
+   - 署名検証とSQSへのメッセージ送信
+   - 3秒以内に「受付完了」レスポンスを返却
+
+2. **処理Lambda** (`slack-attendance-lambda`) 
+   - SQSトリガーでNotionAPIリクエストを非同期処理
+   - 処理完了後、Slackの遅延レスポンス機能で結果を通知
+
+```
+Slack → API Gateway → 受付Lambda → SQS → 処理Lambda → Notion API
+  ↑                      ↓                    ↓
+  └─ 即座にレスポンス      │                    └─ 遅延レスポンス
+                        └─ キューに保存
+```
+
 ## 機能
 
 - Slackのスラッシュコマンド（`/attendance`）で勤怠記録
@@ -9,6 +29,7 @@ slack-attendance-lambdaは、SlackとNotionを連携させた勤怠管理シス�
 - Notionデータベースへの自動保存
 - 月次レポート機能（`/attendance report`）
 - Slack署名検証によるセキュリティ確保
+- SQSによる非同期処理とリトライ機能
 
 ## 前提条件
 
@@ -21,14 +42,19 @@ slack-attendance-lambdaは、SlackとNotionを連携させた勤怠管理シス�
 
 ## ビルド
 
-本番環境用にビルドするには `cargo lambda build --release` を実行してください。開発用には `--release` フラグを外してください。
+このシステムは2つのLambda関数で構成されているため、それぞれをビルドする必要があります。
 
 ```bash
-# 開発用ビルド
-cargo build
-
-# 本番用ビルド
+# 受付Lambdaのビルド
+cd src/receiver
 cargo lambda build --release
+cd ../..
+
+# 処理Lambdaのビルド  
+cargo lambda build --release
+
+# 一括ビルド（推奨）
+./deploy-both.sh [IAM-ROLE-ARN]  # ビルドとデプロイを一括実行
 ```
 
 詳細については [Cargo Lambda ドキュメント](https://www.cargo-lambda.info/commands/build.html) を参照してください。
@@ -145,7 +171,13 @@ tenv terraform list
 tenv terraform install 1.12.2
 tenv terraform use 1.12.2
 
-# 1. Lambda関数をビルド
+# 1. 両方のLambda関数をビルド
+# 受付Lambda
+cd src/receiver
+cargo lambda build --release
+cd ../..
+
+# 処理Lambda
 cargo lambda build --release
 
 # 2. Terraformディレクトリに移動
@@ -168,21 +200,36 @@ terraform apply
 terraform output api_gateway_url
 ```
 
-#### 方法2: デプロイスクリプトを使用
+#### 方法2: 一括デプロイスクリプトを使用（推奨）
+```bash
+# 実行権限の付与（初回のみ）
+chmod +x deploy-both.sh
+
+# 両方のLambda関数を一括ビルド・デプロイ
+./deploy-both.sh arn:aws:iam::ACCOUNT_ID:role/lambda-execution-role
+```
+
+#### 方法3: 個別デプロイスクリプトを使用
 ```bash
 # 実行権限の付与（初回のみ）
 chmod +x deploy.sh
 
-# デプロイ実行
+# 処理Lambdaのみデプロイ
 ./deploy.sh slack-attendance arn:aws:iam::ACCOUNT_ID:role/lambda-execution-role
 ```
 
-#### 方法3: cargo lambdaコマンドを直接使用
+#### 方法4: cargo lambdaコマンドを直接使用
 ```bash
-# ビルド
+# 受付Lambdaのビルドとデプロイ
+cd src/receiver
 cargo lambda build --release
+cargo lambda deploy \
+  --iam-role arn:aws:iam::ACCOUNT_ID:role/lambda-execution-role \
+  slack-attendance-receiver
+cd ../..
 
-# デプロイ（関数名はパッケージ名と同じにする）
+# 処理Lambdaのビルドとデプロイ
+cargo lambda build --release
 cargo lambda deploy \
   --iam-role arn:aws:iam::ACCOUNT_ID:role/lambda-execution-role \
   slack-attendance-lambda
@@ -190,14 +237,10 @@ cargo lambda deploy \
 # または aws-vault を使用する場合
 aws-vault exec YOUR_PROFILE -- cargo lambda deploy \
   --iam-role arn:aws:iam::ACCOUNT_ID:role/lambda-execution-role \
-  slack-attendance-lambda
-```
+  slack-attendance-receiver
 
-#### 方法4: 環境変数付きでデプロイ
-```bash
-cargo lambda deploy \
+aws-vault exec YOUR_PROFILE -- cargo lambda deploy \
   --iam-role arn:aws:iam::ACCOUNT_ID:role/lambda-execution-role \
-  --env-vars SLACK_SIGNING_SECRET=your_secret,NOTION_API_KEY=your_key,NOTION_DATABASE_ID=your_db_id \
   slack-attendance-lambda
 ```
 
@@ -231,22 +274,39 @@ cargo lambda deploy \
 
 2. **環境変数の設定**
    ```bash
-   # Lambda関数の環境変数設定（1行で記述）
+   # 受付Lambda関数の環境変数設定
+   aws lambda update-function-configuration \
+     --function-name slack-attendance-receiver \
+     --environment Variables='{"SLACK_SIGNING_SECRET":"your_slack_signing_secret","SQS_QUEUE_URL":"your_sqs_queue_url"}'
+
+   # 処理Lambda関数の環境変数設定
    aws lambda update-function-configuration \
      --function-name slack-attendance-lambda \
-     --environment Variables='{"SLACK_SIGNING_SECRET":"your_slack_signing_secret","NOTION_API_KEY":"your_notion_api_key","NOTION_DATABASE_ID":"your_notion_database_id"}'
+     --environment Variables='{"NOTION_API_KEY":"your_notion_api_key","NOTION_DATABASE_ID":"your_notion_database_id"}'
 
    # またはaws-vaultを使用する場合
    aws-vault exec YOUR_PROFILE -- aws lambda update-function-configuration \
+     --function-name slack-attendance-receiver \
+     --environment Variables='{"SLACK_SIGNING_SECRET":"your_slack_signing_secret","SQS_QUEUE_URL":"your_sqs_queue_url"}'
+
+   aws-vault exec YOUR_PROFILE -- aws lambda update-function-configuration \
      --function-name slack-attendance-lambda \
-     --environment Variables='{"SLACK_SIGNING_SECRET":"your_slack_signing_secret","NOTION_API_KEY":"your_notion_api_key","NOTION_DATABASE_ID":"your_notion_database_id"}'
+     --environment Variables='{"NOTION_API_KEY":"your_notion_api_key","NOTION_DATABASE_ID":"your_notion_database_id"}'
    ```
+
+   **注意**: `SQS_QUEUE_URL`は`terraform output sqs_queue_url`で確認できます。
 
 ## 必要な環境変数
 
+### 受付Lambda (`slack-attendance-receiver`)
 | 環境変数名 | 説明 | 取得方法 |
 |-----------|------|---------|
 | `SLACK_SIGNING_SECRET` | Slack署名検証用 | Slack App設定 > Basic Information > Signing Secret |
+| `SQS_QUEUE_URL` | SQSキューURL | `terraform output sqs_queue_url` で確認 |
+
+### 処理Lambda (`slack-attendance-lambda`)
+| 環境変数名 | 説明 | 取得方法 |
+|-----------|------|---------|
 | `NOTION_API_KEY` | Notion API接続用 | Notion > Settings & members > Integrations > 新しい統合を作成 |
 | `NOTION_DATABASE_ID` | 勤怠データベース | NotionデータベースURLの32文字の文字列 |
 
@@ -288,25 +348,32 @@ aws iam attach-user-policy \
 
 #### 3. 実行時エラー
 ```bash
-# ログの確認
+# 受付Lambdaのログ確認
+aws logs describe-log-groups --log-group-name-prefix "/aws/lambda/slack-attendance-receiver"
+aws logs get-log-events \
+  --log-group-name "/aws/lambda/slack-attendance-receiver" \
+  --log-stream-name "LOG_STREAM_NAME"
+
+# 処理Lambdaのログ確認  
 aws logs describe-log-groups --log-group-name-prefix "/aws/lambda/slack-attendance-lambda"
-
-# 直近のログストリーム確認
-aws logs describe-log-streams \
-  --log-group-name "/aws/lambda/slack-attendance-lambda" \
-  --order-by LastEventTime \
-  --descending \
-  --max-items 1
-
-# ログの表示
 aws logs get-log-events \
   --log-group-name "/aws/lambda/slack-attendance-lambda" \
   --log-stream-name "LOG_STREAM_NAME"
+
+# SQSデッドレターキューの確認
+aws sqs get-queue-attributes \
+  --queue-url "$(terraform output -raw sqs_dlq_arn | sed 's/arn:aws:sqs:[^:]*:[^:]*:/https:\/\/sqs.ap-northeast-1.amazonaws.com\//')" \
+  --attribute-names ApproximateNumberOfMessages
 ```
 
 #### 4. 環境変数エラー
 ```bash
-# 環境変数の確認
+# 受付Lambda環境変数の確認
+aws lambda get-function-configuration \
+  --function-name slack-attendance-receiver \
+  --query 'Environment.Variables'
+
+# 処理Lambda環境変数の確認
 aws lambda get-function-configuration \
   --function-name slack-attendance-lambda \
   --query 'Environment.Variables'
@@ -326,6 +393,12 @@ aws lambda get-function-configuration \
 
 ### レスポンス例
 
+**即座のレスポンス（受付Lambda）:**
+```
+コマンドを受け付けました。処理中です... ⏳
+```
+
+**遅延レスポンス（処理Lambda）:**
 ```
 田中太郎 さんが 出勤 しました (2024-06-13 09:00:00)
 ```
