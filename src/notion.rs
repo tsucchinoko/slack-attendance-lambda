@@ -48,7 +48,7 @@ impl NotionClient {
             },
             timestamp: NotionDate {
                 date: NotionDateValue {
-                    start: record.timestamp.to_rfc3339(),
+                    start: record.timestamp.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
                 },
             },
             date: NotionRichText {

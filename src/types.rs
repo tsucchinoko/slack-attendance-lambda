@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
@@ -39,7 +39,7 @@ pub struct AttendanceRecord {
     pub user_id: String,
     pub user_name: String,
     pub action: AttendanceAction,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: DateTime<FixedOffset>,
     pub date: String,
 }
 

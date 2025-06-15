@@ -3,7 +3,7 @@ mod slack;
 mod types;
 
 use lambda_http::{run, service_fn, Error, Request, Response, Body};
-use chrono::{Utc, Local, TimeZone, Datelike};
+use chrono::{Utc, Local, Datelike, FixedOffset};
 use std::collections::HashMap;
 use types::*;
 
@@ -77,13 +77,14 @@ async fn handle_attendance(command: &SlackCommand) -> Result<String, Error> {
     );
 
     let now = Utc::now();
-    let jst = Local.from_utc_datetime(&now.naive_utc());
+    let jst_offset = FixedOffset::east_opt(9 * 3600).unwrap(); // JST = UTC+9
+    let jst = now.with_timezone(&jst_offset);
     
     let record = AttendanceRecord {
         user_id: command.user_id.clone(),
         user_name: command.user_name.clone(),
         action: action.clone(),
-        timestamp: now,
+        timestamp: jst, // JSTの時刻をそのまま保存
         date: jst.format("%Y-%m-%d").to_string(),
     };
 
