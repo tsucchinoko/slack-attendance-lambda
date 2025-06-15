@@ -51,7 +51,7 @@ resource "aws_iam_role_policy" "receiver_lambda_sqs_policy" {
 # Package receiver Lambda function
 data "archive_file" "receiver_lambda_zip" {
   type        = "zip"
-  source_file = "../target/lambda/bootstrap/bootstrap"
+  source_file = "../target/lambda/slack-attendance-receiver/bootstrap"
   output_path = "${path.module}/receiver_lambda_deployment.zip"
 }
 
@@ -89,6 +89,48 @@ resource "aws_api_gateway_integration" "receiver_lambda_integration" {
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.slack_attendance_receiver.invoke_arn
+}
+
+# API Gateway Integration Responses
+resource "aws_api_gateway_integration_response" "slack_integration_response_200" {
+  rest_api_id = aws_api_gateway_rest_api.slack_api.id
+  resource_id = aws_api_gateway_resource.slack_resource.id
+  http_method = aws_api_gateway_method.slack_post.http_method
+  status_code = aws_api_gateway_method_response.slack_response_200.status_code
+
+  response_parameters = {
+    "method.response.header.Content-Type" = "'application/json'"
+  }
+
+  depends_on = [aws_api_gateway_integration.receiver_lambda_integration]
+}
+
+resource "aws_api_gateway_integration_response" "slack_integration_response_400" {
+  rest_api_id       = aws_api_gateway_rest_api.slack_api.id
+  resource_id       = aws_api_gateway_resource.slack_resource.id
+  http_method       = aws_api_gateway_method.slack_post.http_method
+  status_code       = aws_api_gateway_method_response.slack_response_400.status_code
+  selection_pattern = "4\\d{2}"
+
+  response_parameters = {
+    "method.response.header.Content-Type" = "'application/json'"
+  }
+
+  depends_on = [aws_api_gateway_integration.receiver_lambda_integration]
+}
+
+resource "aws_api_gateway_integration_response" "slack_integration_response_500" {
+  rest_api_id       = aws_api_gateway_rest_api.slack_api.id
+  resource_id       = aws_api_gateway_resource.slack_resource.id
+  http_method       = aws_api_gateway_method.slack_post.http_method
+  status_code       = aws_api_gateway_method_response.slack_response_500.status_code
+  selection_pattern = "5\\d{2}"
+
+  response_parameters = {
+    "method.response.header.Content-Type" = "'application/json'"
+  }
+
+  depends_on = [aws_api_gateway_integration.receiver_lambda_integration]
 }
 
 # Lambda permission for API Gateway to invoke receiver
