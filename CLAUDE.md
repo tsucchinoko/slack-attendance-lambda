@@ -165,43 +165,12 @@ aws configure
 # Default output format: json
 ```
 
-#### 2. IAMロールの作成
-AWS Consoleまたは以下のCLIコマンドでLambda実行ロールを作成：
-
-```bash
-# 信頼ポリシーファイルの作成
-cat > trust-policy.json << EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "lambda.amazonaws.com"
-      },
-      "Action": "sts:AssumeRole"
-    }
-  ]
-}
-EOF
-
-# IAMロールの作成
-aws iam create-role \
-  --role-name lambda-execution-role \
-  --assume-role-policy-document file://trust-policy.json
-
-# 基本実行権限のアタッチ
-aws iam attach-role-policy \
-  --role-name lambda-execution-role \
-  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-
-# ロールARNの確認
-aws iam get-role --role-name lambda-execution-role --query 'Role.Arn' --output text
-```
-
 ### デプロイ手順
 
 #### 方法1: Terraformを使用（推奨）
+
+IAMロール、Lambda関数、SQS、API Gatewayをすべて自動作成します。
+
 ```bash
 # 1. 両方のLambda関数をビルド
 cd src/receiver
@@ -209,7 +178,7 @@ cargo lambda build --release
 cd ../..
 cargo lambda build --release
 
-# 2. Terraformでインフラをデプロイ
+# 2. Terraformでインフラをデプロイ（IAMロールも自動作成）
 cd terraform
 terraform init
 terraform plan
@@ -280,6 +249,22 @@ cargo lambda deploy \
    - Request URL: `https://API_ID.execute-api.REGION.amazonaws.com/prod/slack`
 
 2. **環境変数の設定**
+
+   **Terraformを使用する場合（推奨）**: 
+   ```bash
+   # terraform.tfvarsファイルを編集して環境変数を設定
+   cd terraform
+   cp terraform.tfvars.example terraform.tfvars
+   # 以下の値を実際の値に編集
+   # slack_signing_secret = "your-slack-signing-secret-here"
+   # notion_api_key      = "your-notion-api-key-here"
+   # notion_database_id  = "your-notion-database-id-here"
+   
+   # Terraformデプロイ時に環境変数が自動設定されます
+   terraform apply
+   ```
+
+   **手動デプロイの場合**: 
    ```bash
    # 受付Lambda関数の環境変数設定
    aws lambda update-function-configuration \

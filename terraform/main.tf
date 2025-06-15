@@ -52,9 +52,8 @@ resource "aws_lambda_function" "slack_attendance" {
 
   environment {
     variables = {
-      SLACK_SIGNING_SECRET = var.slack_signing_secret
-      NOTION_API_KEY       = var.notion_api_key
-      NOTION_DATABASE_ID   = var.notion_database_id
+      NOTION_API_KEY     = var.notion_api_key
+      NOTION_DATABASE_ID = var.notion_database_id
     }
   }
 

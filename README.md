@@ -124,45 +124,11 @@ aws configure
 # Default output format: json
 ```
 
-#### 2. IAMロールの作成
-AWS Consoleまたは以下のCLIコマンドでLambda実行ロールを作成：
-
-```bash
-# 信頼ポリシーファイルの作成
-cat > trust-policy.json << EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "lambda.amazonaws.com"
-      },
-      "Action": "sts:AssumeRole"
-    }
-  ]
-}
-EOF
-
-# IAMロールの作成
-aws iam create-role \
-  --role-name lambda-execution-role \
-  --assume-role-policy-document file://trust-policy.json
-
-# 基本実行権限のアタッチ
-aws iam attach-role-policy \
-  --role-name lambda-execution-role \
-  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-
-# ロールARNの確認
-aws iam get-role --role-name lambda-execution-role --query 'Role.Arn' --output text
-```
-
 ### デプロイ手順
 
 #### 方法1: Terraformを使用（推奨）
 
-インフラストラクチャをコードとして管理できるため、本番環境では推奨されます。
+インフラストラクチャをコードとして管理できるため、本番環境では推奨されます。IAMロールも自動的に作成されます。
 
 ```bash
 # 0. Terraformバージョンの確認（tenvを使用）
@@ -193,7 +159,7 @@ terraform init
 # 5. 実行計画の確認
 terraform plan
 
-# 6. デプロイ実行
+# 6. デプロイ実行（IAMロール、Lambda関数、SQS、API Gatewayを一括作成）
 terraform apply
 
 # 7. 出力されたAPI Gateway URLをSlackアプリに設定
@@ -272,43 +238,60 @@ aws-vault exec YOUR_PROFILE -- cargo lambda deploy \
    - Slash Commands設定
    - Request URL: `https://API_ID.execute-api.REGION.amazonaws.com/prod/slack`
 
-2. **環境変数の設定**
+## 環境変数の設定
+
+**Terraformを使用する場合（推奨）**: 環境変数は`terraform.tfvars`ファイルで管理されます。
+
+1. **terraform.tfvarsファイルの作成**
    ```bash
-   # 受付Lambda関数の環境変数設定
-   aws lambda update-function-configuration \
-     --function-name slack-attendance-receiver \
-     --environment Variables='{"SLACK_SIGNING_SECRET":"your_slack_signing_secret","SQS_QUEUE_URL":"your_sqs_queue_url"}'
-
-   # 処理Lambda関数の環境変数設定
-   aws lambda update-function-configuration \
-     --function-name slack-attendance-lambda \
-     --environment Variables='{"NOTION_API_KEY":"your_notion_api_key","NOTION_DATABASE_ID":"your_notion_database_id"}'
-
-   # またはaws-vaultを使用する場合
-   aws-vault exec YOUR_PROFILE -- aws lambda update-function-configuration \
-     --function-name slack-attendance-receiver \
-     --environment Variables='{"SLACK_SIGNING_SECRET":"your_slack_signing_secret","SQS_QUEUE_URL":"your_sqs_queue_url"}'
-
-   aws-vault exec YOUR_PROFILE -- aws lambda update-function-configuration \
-     --function-name slack-attendance-lambda \
-     --environment Variables='{"NOTION_API_KEY":"your_notion_api_key","NOTION_DATABASE_ID":"your_notion_database_id"}'
+   cd terraform
+   cp terraform.tfvars.example terraform.tfvars
    ```
 
-   **注意**: `SQS_QUEUE_URL`は`terraform output sqs_queue_url`で確認できます。
+2. **terraform.tfvarsファイルの編集**
+   ```bash
+   # 以下の値を実際の値に置き換えてください
+   slack_signing_secret = "your-slack-signing-secret-here"
+   notion_api_key      = "your-notion-api-key-here"
+   notion_database_id  = "your-notion-database-id-here"
+   ```
+
+   **⚠️ セキュリティ注意事項**:
+   - `terraform.tfvars`ファイルは機密情報を含むため、Gitにコミットしないでください
+   - `.gitignore`で既に無視されていることを確認済みです
+
+3. **Terraformデプロイ時に自動設定**
+   ```bash
+   terraform apply  # 環境変数が自動的にLambda関数に設定されます
+   ```
+
+**手動デプロイを使用する場合**: AWS CLIで環境変数を設定する必要があります。
+
+```bash
+# 受付Lambda関数の環境変数設定
+aws lambda update-function-configuration \
+  --function-name slack-attendance-receiver \
+  --environment Variables='{"SLACK_SIGNING_SECRET":"your_slack_signing_secret","SQS_QUEUE_URL":"your_sqs_queue_url"}'
+
+# 処理Lambda関数の環境変数設定
+aws lambda update-function-configuration \
+  --function-name slack-attendance-lambda \
+  --environment Variables='{"NOTION_API_KEY":"your_notion_api_key","NOTION_DATABASE_ID":"your_notion_database_id"}'
+```
 
 ## 必要な環境変数
 
 ### 受付Lambda (`slack-attendance-receiver`)
-| 環境変数名 | 説明 | 取得方法 |
-|-----------|------|---------|
-| `SLACK_SIGNING_SECRET` | Slack署名検証用 | Slack App設定 > Basic Information > Signing Secret |
-| `SQS_QUEUE_URL` | SQSキューURL | `terraform output sqs_queue_url` で確認 |
+| 環境変数名 | 説明 | 取得方法 | Terraformでの設定 |
+|-----------|------|---------|-------------------|
+| `SLACK_SIGNING_SECRET` | Slack署名検証用 | Slack App設定 > Basic Information > Signing Secret | `terraform.tfvars`で設定 |
+| `SQS_QUEUE_URL` | SQSキューURL | 自動設定 | Terraformが自動で設定 |
 
 ### 処理Lambda (`slack-attendance-lambda`)
-| 環境変数名 | 説明 | 取得方法 |
-|-----------|------|---------|
-| `NOTION_API_KEY` | Notion API接続用 | Notion > Settings & members > Integrations > 新しい統合を作成 |
-| `NOTION_DATABASE_ID` | 勤怠データベース | NotionデータベースURLの32文字の文字列 |
+| 環境変数名 | 説明 | 取得方法 | Terraformでの設定 |
+|-----------|------|---------|-------------------|
+| `NOTION_API_KEY` | Notion API接続用 | Notion > Settings & members > Integrations > 新しい統合を作成 | `terraform.tfvars`で設定 |
+| `NOTION_DATABASE_ID` | 勤怠データベース | NotionデータベースURLの32文字の文字列 | `terraform.tfvars`で設定 |
 
 ## Notionデータベース設定
 

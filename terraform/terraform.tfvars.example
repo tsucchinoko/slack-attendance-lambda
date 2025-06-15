@@ -8,11 +8,18 @@ lambda_memory_size   = 256
 lambda_timeout       = 30
 
 # Slack設定
+# Slack App > Basic Information > Signing Secret から取得
 slack_signing_secret = "your-slack-signing-secret-here"
 
 # Notion設定
+# Notion > Settings & members > Integrations から取得
 notion_api_key     = "your-notion-api-key-here"
+# NotionデータベースURLの32文字の文字列
 notion_database_id = "your-notion-database-id-here"
+
+# セキュリティ注意事項:
+# - terraform.tfvarsファイルは機密情報を含むため、Gitにコミットしないでください
+# - .gitignoreにterraform.tfvarsが含まれていることを確認してください
 
 # API Gateway設定
 api_gateway_stage_name = "prod"
