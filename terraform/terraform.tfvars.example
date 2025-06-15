@@ -1,0 +1,21 @@
+# AWS設定
+aws_region = "ap-northeast-1"
+environment = "prod"
+
+# Lambda設定
+lambda_function_name = "slack-attendance-lambda"
+lambda_memory_size   = 256
+lambda_timeout       = 30
+
+# Slack設定
+slack_signing_secret = "your-slack-signing-secret-here"
+
+# Notion設定
+notion_api_key     = "your-notion-api-key-here"
+notion_database_id = "your-notion-database-id-here"
+
+# API Gateway設定
+api_gateway_stage_name = "prod"
+
+# CloudWatch Logs設定
+log_retention_days = 7

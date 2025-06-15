@@ -17,6 +17,7 @@ slack-attendance-lambdaは、SlackとNotionを連携させた勤怠管理シス�
 - AWS CLI設定済み
 - Slackアプリ作成済み
 - Notionデータベース作成済み
+- [tenv](https://github.com/tofuutils/tenv) (Terraformバージョン管理用)
 
 ## ビルド
 
@@ -133,7 +134,41 @@ aws iam get-role --role-name lambda-execution-role --query 'Role.Arn' --output t
 
 ### デプロイ手順
 
-#### 方法1: デプロイスクリプトを使用（推奨）
+#### 方法1: Terraformを使用（推奨）
+
+インフラストラクチャをコードとして管理できるため、本番環境では推奨されます。
+
+```bash
+# 0. Terraformバージョンの確認（tenvを使用）
+# プロジェクトはTerraform 1.12.2を使用しています
+tenv terraform list
+tenv terraform install 1.12.2
+tenv terraform use 1.12.2
+
+# 1. Lambda関数をビルド
+cargo lambda build --release
+
+# 2. Terraformディレクトリに移動
+cd terraform
+
+# 3. terraform.tfvarsファイルを作成（terraform.tfvars.exampleを参考に）
+cp terraform.tfvars.example terraform.tfvars
+# terraform.tfvarsを編集して実際の値を設定
+
+# 4. Terraformの初期化
+terraform init
+
+# 5. 実行計画の確認
+terraform plan
+
+# 6. デプロイ実行
+terraform apply
+
+# 7. 出力されたAPI Gateway URLをSlackアプリに設定
+terraform output api_gateway_url
+```
+
+#### 方法2: デプロイスクリプトを使用
 ```bash
 # 実行権限の付与（初回のみ）
 chmod +x deploy.sh
@@ -142,7 +177,7 @@ chmod +x deploy.sh
 ./deploy.sh slack-attendance arn:aws:iam::ACCOUNT_ID:role/lambda-execution-role
 ```
 
-#### 方法2: cargo lambdaコマンドを直接使用
+#### 方法3: cargo lambdaコマンドを直接使用
 ```bash
 # ビルド
 cargo lambda build --release
@@ -158,7 +193,7 @@ aws-vault exec YOUR_PROFILE -- cargo lambda deploy \
   slack-attendance-lambda
 ```
 
-#### 方法3: 環境変数付きでデプロイ
+#### 方法4: 環境変数付きでデプロイ
 ```bash
 cargo lambda deploy \
   --iam-role arn:aws:iam::ACCOUNT_ID:role/lambda-execution-role \
@@ -168,7 +203,9 @@ cargo lambda deploy \
 
 ### API Gateway設定
 
-デプロイ後、API Gatewayを手動で設定する必要があります：
+**Terraformを使用した場合**: API Gatewayは自動的に作成されます。`terraform output api_gateway_url`でURLを確認できます。
+
+**手動デプロイの場合**: API Gatewayを手動で設定する必要があります：
 
 1. **Lambda関数の確認**
    ```bash
