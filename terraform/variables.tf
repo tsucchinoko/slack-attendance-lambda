@@ -57,3 +57,15 @@ variable "log_retention_days" {
   type        = number
   default     = 7
 }
+
+variable "enable_sqs_encryption" {
+  description = "Enable KMS encryption for SQS queues"
+  type        = bool
+  default     = false
+}
+
+variable "kms_key_arn" {
+  description = "ARN of KMS key for SQS encryption (required if enable_sqs_encryption is true)"
+  type        = string
+  default     = ""
+}

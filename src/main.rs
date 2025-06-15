@@ -2,67 +2,56 @@ mod notion;
 mod slack;
 mod types;
 
-use lambda_http::{run, service_fn, Error, Request, Response, Body};
+use aws_lambda_events::event::sqs::SqsEvent;
+use lambda_runtime::{run, service_fn, Error, LambdaEvent};
 use chrono::{Utc, Local, Datelike, FixedOffset};
-use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
 use types::*;
 
-async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
-    // Get body as string
-    let body_bytes = event.body().to_vec();
-    let body_string = String::from_utf8(body_bytes)?;
-    
-    // Get headers
-    let slack_signature = event.headers()
-        .get("X-Slack-Signature")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-    let slack_timestamp = event.headers()
-        .get("X-Slack-Request-Timestamp")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-    let signing_secret = std::env::var("SLACK_SIGNING_SECRET")?;
+#[derive(Debug, Serialize, Deserialize)]
+struct SqsMessage {
+    command: SlackCommand,
+    timestamp: String,
+}
 
-    // Verify Slack signature
-    if !slack::verify_slack_signature(&signing_secret, &body_string, slack_timestamp, slack_signature)? {
-        return Ok(Response::builder()
-            .status(401)
-            .header("Content-Type", "text/plain")
-            .body(Body::from("Unauthorized"))?);
+async fn function_handler(event: LambdaEvent<SqsEvent>) -> Result<(), Error> {
+    // Process each SQS message
+    for record in event.payload.records {
+        if let Some(body) = record.body {
+            // Parse the SQS message
+            let sqs_message: SqsMessage = serde_json::from_str(&body)?;
+            let command = sqs_message.command;
+            
+            // Process the command
+            let response_text = if command.text.trim() == "report" {
+                handle_report(&command).await?
+            } else {
+                handle_attendance(&command).await?
+            };
+            
+            // Send delayed response to Slack
+            send_delayed_response(&command.response_url, &response_text).await?;
+        }
     }
-
-    // Parse form data
-    let params: HashMap<String, String> = serde_urlencoded::from_str(&body_string)?;
     
-    let command = SlackCommand {
-        token: params.get("token").unwrap_or(&String::new()).clone(),
-        team_id: params.get("team_id").unwrap_or(&String::new()).clone(),
-        team_domain: params.get("team_domain").unwrap_or(&String::new()).clone(),
-        channel_id: params.get("channel_id").unwrap_or(&String::new()).clone(),
-        channel_name: params.get("channel_name").unwrap_or(&String::new()).clone(),
-        user_id: params.get("user_id").unwrap_or(&String::new()).clone(),
-        user_name: params.get("user_name").unwrap_or(&String::new()).clone(),
-        command: params.get("command").unwrap_or(&String::new()).clone(),
-        text: params.get("text").unwrap_or(&String::new()).clone(),
-        response_url: params.get("response_url").unwrap_or(&String::new()).clone(),
-        trigger_id: params.get("trigger_id").unwrap_or(&String::new()).clone(),
-    };
+    Ok(())
+}
 
-    let response_text = if command.text.trim() == "report" {
-        handle_report(&command).await?
-    } else {
-        handle_attendance(&command).await?
-    };
-
+async fn send_delayed_response(response_url: &str, text: &str) -> Result<(), Error> {
+    let client = reqwest::Client::new();
+    
     let response = SlackResponse {
         response_type: "in_channel".to_string(),
-        text: response_text,
+        text: text.to_string(),
     };
-
-    Ok(Response::builder()
-        .status(200)
-        .header("Content-Type", "application/json")
-        .body(Body::from(serde_json::to_string(&response)?))?)
+    
+    client
+        .post(response_url)
+        .json(&response)
+        .send()
+        .await?;
+    
+    Ok(())
 }
 
 async fn handle_attendance(command: &SlackCommand) -> Result<String, Error> {
