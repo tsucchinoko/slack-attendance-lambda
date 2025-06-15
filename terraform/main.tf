@@ -34,7 +34,7 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
 # Package Lambda function
 data "archive_file" "lambda_zip" {
   type        = "zip"
-  source_file = "../src/processor/target/lambda/slack-attendance-processor/bootstrap"
+  source_file = "../src/processor/target/lambda/slack-attendance-lambda/bootstrap"
   output_path = "${path.module}/lambda_deployment.zip"
 }
 
@@ -94,7 +94,6 @@ resource "aws_api_gateway_method" "slack_post" {
 # API Gateway Deployment
 resource "aws_api_gateway_deployment" "slack_deployment" {
   rest_api_id = aws_api_gateway_rest_api.slack_api.id
-  stage_name  = var.api_gateway_stage_name
 
   depends_on = [
     aws_api_gateway_integration.receiver_lambda_integration
@@ -103,4 +102,11 @@ resource "aws_api_gateway_deployment" "slack_deployment" {
   lifecycle {
     create_before_destroy = true
   }
+}
+
+# API Gateway Stage
+resource "aws_api_gateway_stage" "slack_stage" {
+  deployment_id = aws_api_gateway_deployment.slack_deployment.id
+  rest_api_id   = aws_api_gateway_rest_api.slack_api.id
+  stage_name    = var.api_gateway_stage_name
 }

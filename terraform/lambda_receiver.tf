@@ -51,7 +51,7 @@ resource "aws_iam_role_policy" "receiver_lambda_sqs_policy" {
 # Package receiver Lambda function
 data "archive_file" "receiver_lambda_zip" {
   type        = "zip"
-  source_file = "../src/receiver/target/lambda/slack-attendance-receiver/bootstrap"
+  source_file = "../target/lambda/bootstrap/bootstrap"
   output_path = "${path.module}/receiver_lambda_deployment.zip"
 }
 

@@ -10,7 +10,7 @@ output "lambda_function_arn" {
 
 output "api_gateway_url" {
   description = "URL of the API Gateway endpoint"
-  value       = "${aws_api_gateway_deployment.slack_deployment.invoke_url}/slack"
+  value       = "https://${aws_api_gateway_rest_api.slack_api.id}.execute-api.${var.aws_region}.amazonaws.com/${aws_api_gateway_stage.slack_stage.stage_name}/slack"
 }
 
 output "api_gateway_id" {
