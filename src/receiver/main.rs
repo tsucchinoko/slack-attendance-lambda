@@ -1,10 +1,8 @@
 use lambda_http::{run, service_fn, Error, Request, Response, Body};
-use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde::Serialize;
 use std::collections::HashMap;
 
 // Import shared types and local modules
-#[path = "../processor/types.rs"]
 mod types;
 mod slack;
 
